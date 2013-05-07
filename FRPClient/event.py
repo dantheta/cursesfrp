@@ -1,39 +1,17 @@
 
 import sys
 import zmq
-import logging
 import pickle
+import logging
 
-class Serializable(object):
-	def dump(self):
-		return pickle.dumps(self)
-	
-
-class Event(Serializable):
-	def __init__(self, cmd, user, location, **kw):
-		self.cmd = cmd
-		self.user = user
-		self.location = location
-		self.kw = kw
-
-class Request(Serializable):
-	def __init__(self, req, user, location, *opts):
-		self.req = req
-		self.user = user
-		self.location = location
-		self.opts = opts
-		
-class Response(Serializable):
-	def __init__(self, rsp, *opts):
-		self.rsp = rsp
-		self.opts = opts
-		
+from FRPShared.model import Serializable,Event,Request
 
 class EventSource(object):
-	def __init__(self):
+	def __init__(self, user):
 		self.ctx = zmq.Context()
 		self.subscriber = self.ctx.socket(zmq.SUB)
 		self.subscriber.connect('tcp://localhost:5555')
+		self.subscriber.setsockopt(zmq.SUBSCRIBE, 'player-' + user)
 		self.req = self.ctx.socket(zmq.REQ)
 		self.req.connect('tcp://localhost:5557')
 
@@ -67,7 +45,7 @@ class EventSource(object):
 			first = None
 			logging.info("Poll response: %s", streams[0])
 			for (stream, evtype) in streams:
-				if isinstance(stream, int):
+				if stream == 0:
 					logging.debug("User input waiting")
 					self.has_input = True
 				else:
@@ -78,8 +56,11 @@ class EventSource(object):
 	def send(self, obj):
 		assert isinstance(obj, Serializable)
 		if isinstance(obj, Event):
-			self.req.send(obj.dump())
+			self.req.send_pyobj(obj)
 		if isinstance(obj, Request):
-			self.req.send(obj.dump())
+			self.req.send_pyobj(obj)
 		
+	def recv(self):
+		# receive message (usually response) from REQ
+		logging.debug(self.req.recv())
 
