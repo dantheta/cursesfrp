@@ -77,6 +77,7 @@ class Client(object):
 	def main(self, stdscr):
 		self.setup(stdscr)
 
+		self.send_event('ENTER', old_location = None)
 		while True:
 			evt = self.eventsrc.get_next()
 			if self.eventsrc.has_input:
@@ -97,7 +98,10 @@ class Client(object):
 						self.send_request(cmd, opt)
 			if evt is not None:
 				logging.debug("Got evt: %s", evt)
-				self.log(evt.split(' ',1)[1])
+				if ' ' in evt:
+					self.log(evt.split(' ',1)[1])
+				elif evt == 'OK':
+					logging.info("Request acknowledged")
 			time.sleep(0.1)
 
 	def send_event(self, cmd, **kw):
