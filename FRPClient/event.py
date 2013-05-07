@@ -34,8 +34,6 @@ class EventSource(object):
 		self.ctx = zmq.Context()
 		self.subscriber = self.ctx.socket(zmq.SUB)
 		self.subscriber.connect('tcp://localhost:5555')
-		self.say = self.ctx.socket(zmq.PUSH)
-		self.say.connect('tcp://localhost:5556')
 		self.req = self.ctx.socket(zmq.REQ)
 		self.req.connect('tcp://localhost:5557')
 
@@ -80,7 +78,7 @@ class EventSource(object):
 	def send(self, obj):
 		assert isinstance(obj, Serializable)
 		if isinstance(obj, Event):
-			self.say.send(obj.dump())
+			self.req.send(obj.dump())
 		if isinstance(obj, Request):
 			self.req.send(obj.dump())
 		

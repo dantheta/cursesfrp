@@ -16,7 +16,6 @@ logging.basicConfig(
 
 ctx = zmq.Context()
 sock = ctx.socket(zmq.PUB)
-sock2 = ctx.socket(zmq.PULL)
 sock3 = ctx.socket(zmq.REP)
 
 places = ['room','corridor','cavern','cave']
@@ -36,27 +35,37 @@ def process_request(req):
 	if req.req == '/look':
 		if req.location not in place_desc:
 			place_desc[req.location] = make_place_desc()
-		sock3.send("/look " + place_desc[req.location])
+		reply = place_desc[req.location]
+		if len(location_users[req.location]) > 1:
+			reply += "  There are {0} other people here: {1}".format(
+				len(location_users[req.location]) - 1,
+				','.join([ x for x in location_users[req.location] if x != req.user])
+				)
+		sock3.send("/look " + reply)
 	else:
 		sock3.send("Unknown request")
 
 def process_event(evt):
 	if evt.cmd == 'SAY':
 		sock.send("{o.location} [{o.user}] {text}".format(o = evt, text = evt.kw['text']) )
-	if evt.cmd == 'ENTER':
+		sock3.send("OK")
+	elif evt.cmd == 'ENTER':
 		logging.info("Got new location for %s: %s", evt.user, evt.location)
 		try:
-			location_users[evt.kw['old_location']].remove(evt.user)
+			if evt.kw.get('old_location'):
+				location_users[evt.kw['old_location']].remove(evt.user)
 		except ValueError: pass
 		location_users[evt.location].append(evt.user)
+		sock.send("{o.location} [{o.user}] arrives.".format(o=evt))
+		sock3.send("OK")
+	else:
+		sock3.send("UNKNOWN")
 
 if __name__ == '__main__':
 	sock.bind('tcp://*:5555')
-	sock2.bind('tcp://*:5556')
 	sock3.bind('tcp://*:5557')
 
 	poller = zmq.Poller()
-	poller.register(sock2,zmq.POLLIN)
 	poller.register(sock3,zmq.POLLIN)
 	poller.register(sys.stdin,zmq.POLLIN)
 
@@ -67,12 +76,11 @@ if __name__ == '__main__':
 				sock.send(msg)
 			else:
 				msg = stream.recv()
-				if stream == sock2:
-					evt = pickle.loads(msg)
+				evt = pickle.loads(msg)
+				if isinstance(evt, Event):
 					logging.info("Received event: %s; %s; %s", evt.cmd, evt.user, evt.location)
 					process_event(evt)
-
-				if stream == sock3:
+				elif isinstance(evt, Request):
 					req = pickle.loads(msg)
 					logging.info("Received request: %s; %s; %s", req.req, req.user, req.location)
 					process_request(req)
