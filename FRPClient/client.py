@@ -4,16 +4,18 @@ import signal
 import curses
 import logging
 
-from event import EventSource,Event,Request
+from FRPShared.model import Event,Request
+from event import EventSource
 
 
 class Client(object):
 	def __init__(self, user = None):
 		self.stdscr = None
 		self.logwin = None
-		self.eventsrc = EventSource()
-		self.set_location('location-1')
+		self.location = ''
 		self.user = user or 'Dantheta'
+		self.eventsrc = EventSource(self.user)
+		self.set_location('location-1')
 		pass
 
 	def set_location(self, loc):
@@ -77,6 +79,8 @@ class Client(object):
 	def main(self, stdscr):
 		self.setup(stdscr)
 
+		self.send_event('ANNOUNCE')
+		self.eventsrc.recv()
 		self.send_event('ENTER', old_location = None)
 		while True:
 			evt = self.eventsrc.get_next()
@@ -97,11 +101,16 @@ class Client(object):
 					else:
 						self.send_request(cmd, opt)
 			if evt is not None:
-				logging.debug("Got evt: %s", evt)
-				if ' ' in evt:
-					self.log(evt.split(' ',1)[1])
-				elif evt == 'OK':
+				logging.debug("Got evt: (%d) %s", len(evt), evt)
+				if evt == 'OK':
 					logging.info("Request acknowledged")
+				else:
+					if ' ' in evt:
+						txt = evt.split(' ',1)[1] # throw away topic
+					else:
+						txt = evt
+					for line in txt.split('\n'):
+						self.log(line)
 			time.sleep(0.1)
 
 	def send_event(self, cmd, **kw):

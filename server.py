@@ -6,7 +6,10 @@ import random
 import logging
 import collections
 
-from FRPClient.event import Event,Request
+from FRPShared.model import Event,Request,Profile
+from FRPServer.fight import Fight
+from FRPServer.location import Locations
+from FRPServer.user import Users,User
 
 logging.basicConfig(
 	level = logging.DEBUG,
@@ -18,30 +21,45 @@ ctx = zmq.Context()
 sock = ctx.socket(zmq.PUB)
 sock3 = ctx.socket(zmq.REP)
 
-places = ['room','corridor','cavern','cave']
-place_attr = ['light','dark','damp','dry']
-
-place_desc = {}
-
-location_users = collections.defaultdict(list)
-
-def make_place_desc():
-	return "You are in a {attr} {place}.".format(
-				attr = random.sample(place_attr,1)[0],
-				place = random.sample(places,1)[0],
-				)
+places = Locations()
+users = Users.instance()
 
 def process_request(req):
 	if req.req == '/look':
-		if req.location not in place_desc:
-			place_desc[req.location] = make_place_desc()
-		reply = place_desc[req.location]
-		if len(location_users[req.location]) > 1:
-			reply += "  There are {0} other people here: {1}".format(
-				len(location_users[req.location]) - 1,
-				','.join([ x for x in location_users[req.location] if x != req.user])
-				)
+		loc = places[req.location]
+		reply = loc.describe(req.user)
 		sock3.send("/look " + reply)
+	elif req.req == '/loot':
+		loc = places[req.location]
+		for dead in loc.dead:
+			found = dead.search()
+			if found is not None:
+				sock3.send("/loot You found {0} {1}.".format(found[0], found[1]))
+				break
+		else:
+			sock3.send("/loot You found nothing.")
+				
+	elif req.req == '/search':
+		loc = places[req.location]
+		found = loc.search()
+		if found is None:
+			sock3.send("/search You found nothing.")
+		else:
+			sock3.send("/search You found {0} {1}.".format(found[0], found[1]))
+	elif req.req == '/attack':
+		# assume we're attacking the first enemy
+		loc = places[req.location]
+		user = users[req.user]
+		if len(loc.enemies) == 0:
+			sock3.send('/attack No enemies to attack')
+		else:
+			enemy = loc.enemies[0]
+			fight = Fight(user, enemy, sock, ['player-' + user.name])
+			winner = fight.fight()
+			if winner != enemy:
+				loc.enemies.remove(enemy)
+				loc.dead.append(enemy)
+			sock3.send('/attack {0} wins'.format(winner.name))
 	else:
 		sock3.send("Unknown request")
 
@@ -53,10 +71,14 @@ def process_event(evt):
 		logging.info("Got new location for %s: %s", evt.user, evt.location)
 		try:
 			if evt.kw.get('old_location'):
-				location_users[evt.kw['old_location']].remove(evt.user)
+				places[evt.kw['old_location']].users.discard(evt.user)
 		except ValueError: pass
-		location_users[evt.location].append(evt.user)
+		places[evt.location].users.update([evt.user])
 		sock.send("{o.location} [{o.user}] arrives.".format(o=evt))
+		sock3.send("OK")
+	elif evt.cmd == "ANNOUNCE":
+		logging.info("Generating user record: %s", evt.user)
+		users[evt.user] = User.generate(evt.user)
 		sock3.send("OK")
 	else:
 		sock3.send("UNKNOWN")
