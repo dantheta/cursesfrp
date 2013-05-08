@@ -2,10 +2,12 @@ import sys
 import time
 import signal
 import curses
+import curses.panel
 import logging
 
 from FRPShared.model import Event,Request
 from event import EventSource
+from menu import Menu
 
 
 class Client(object):
@@ -16,6 +18,7 @@ class Client(object):
 		self.user = user or 'Dantheta'
 		self.eventsrc = EventSource(self.user)
 		self.set_location('location-1')
+		self.buffer = ''
 		pass
 
 	def set_location(self, loc):
@@ -24,7 +27,7 @@ class Client(object):
 
 	def setup(self, stdscr):
 		self.stdscr = stdscr
-		curses.echo()
+		self.panel = curses.panel.new_panel(stdscr)
 		self.h, self.w = stdscr.getmaxyx()
 		self.setup_logwin()
 		self.setup_inputwin()
@@ -34,6 +37,7 @@ class Client(object):
 		dims = self.logline+1, self.w, 0, 0
 		logging.info("Dims: %s", dims)
 		self.logwin = self.stdscr.subwin(*dims)
+		self.logpanel = curses.panel.new_panel(self.logwin)
 		self.logwin.scrollok(True)
 		self.logwin.setscrreg(1,self.logline-1)
 		self.draw_logwin()
@@ -46,6 +50,7 @@ class Client(object):
 
 	def setup_inputwin(self):
 		self.inputwin = self.stdscr.subwin(9, self.w, self.logline,0)
+		self.inputpanel = curses.panel.new_panel(self.inputwin)
 		self.inputwin.scrollok(True)
 		self.inputwin.setscrreg(1,7)
 		self.draw_inputwin()
@@ -55,6 +60,7 @@ class Client(object):
 		self.inputwin.addch(0,0, curses.ACS_LTEE)
 		self.inputwin.addch(0,self.w-1, curses.ACS_RTEE)
 		self.inputwin.refresh()
+		self.inputwin.move(7, 1)
 
 	def log(self, msg, *args):
 		s = msg % args
@@ -85,21 +91,9 @@ class Client(object):
 		while True:
 			evt = self.eventsrc.get_next()
 			if self.eventsrc.has_input:
-				s = self.get_input()
-				if not s.startswith('/'):
-					self.send_event('SAY', text=s)
-				else:
-					if ' ' in s:
-						cmd, opt = s.split(' ',1)
-					else:
-						cmd, opt = s, ''
-
-					if cmd == '/go':
-						oldloc = self.location
-						self.set_location(opt)
-						self.send_event('ENTER',old_location=oldloc)
-					else:
-						self.send_request(cmd, opt)
+				s = self.process_key()
+				if s is not None:
+					self.process_input(s)
 			if evt is not None:
 				logging.debug("Got evt: (%d) %s", len(evt), evt)
 				if evt == 'OK':
@@ -112,6 +106,55 @@ class Client(object):
 					for line in txt.split('\n'):
 						self.log(line)
 			time.sleep(0.1)
+
+	def process_key(self):
+		ch = self.inputwin.getch()
+		if ch == 10:
+			s = self.buffer
+			self.inputwin.scroll()
+			self.draw_inputwin()
+			self.buffer = ''
+			return s
+		elif ch == 9:
+			# get options for command so far
+			self.get_options()
+		else:
+			self.inputwin.addch(7, 1+len(self.buffer), ch)
+			self.inputwin.refresh()
+			self.buffer += chr(ch)
+
+	def process_input(self, s):
+		if not s.startswith('/'):
+			self.send_event('SAY', text=s)
+		else:
+			if ' ' in s:
+				cmd, opt = s.split(' ',1)
+			else:
+				cmd, opt = s, ''
+
+			if cmd == '/go':
+				oldloc = self.location
+				self.set_location(opt)
+				self.send_event('ENTER',old_location=oldloc)
+			else:
+				self.send_request(cmd, opt)
+
+	def get_options(self):
+		cmd = self.buffer.split(' ',1)[0] # get command so far
+		menu = Menu(self.logwin, ['North','South','East','West'])
+		option = menu.run()
+		if option is not None:
+			self.inputwin.addstr(7,1+len(self.buffer), ' ' + option)
+			self.buffer += ' ' + option
+			menu.hide()
+			self.logwin.refresh()
+
+			self.inputwin.scroll()
+			self.draw_inputwin()
+			self.process_input(self.buffer)
+		else:
+			menu.hide()
+			self.logwin.refresh()
 
 	def send_event(self, cmd, **kw):
 		evt = Event(cmd, self.user, self.location, **kw)
