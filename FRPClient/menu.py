@@ -46,6 +46,7 @@ class Menu(object):
 		self.draw()
 
 	def run(self):
+		self.draw()
 		while True:
 			ch = self.win.getch()
 			logging.info("Got key: %s", ch)
@@ -59,11 +60,17 @@ class Menu(object):
 			if ch == 27: # escape
 				logging.info("Cancel")
 				return None
+
+	def hide(self):
+		logging.debug("Hiding menu")
+		del self.win
+		del self.panel
+		curses.panel.update_panels()
+		curses.doupdate()
 	
 
 def test(stdscr):
 	m = Menu(stdscr, ['One','Two','Three','Four'])
-	m.draw()
 	m.run()
 
 if __name__ == '__main__':
