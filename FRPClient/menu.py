@@ -4,10 +4,6 @@ import curses
 import logging
 import curses.panel
 
-logging.basicConfig(
-	level = logging.DEBUG,
-	filename='menu.test.log'
-	)
 
 class Menu(object):
 	def __init__(self, parent, options):
@@ -74,5 +70,9 @@ def test(stdscr):
 	m.run()
 
 if __name__ == '__main__':
+	logging.basicConfig(
+		level = logging.DEBUG,
+		filename='menu.test.log'
+		)
 	curses.wrapper(test)
 
