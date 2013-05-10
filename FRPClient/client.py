@@ -9,8 +9,7 @@ import ConfigParser
 
 from FRPShared.model import Event,Request
 from event import EventSource
-from menu import Menu
-from input import InputWindow
+from input import InputWindow,MenuInputCommand
 
 
 class Client(object):
@@ -73,7 +72,9 @@ class Client(object):
 			evt = self.eventsrc.get_next()
 			if self.eventsrc.has_input:
 				command = self.inputwin.process_key()
-				if command is not None:
+				if isinstance(command, MenuInputCommand):
+					self.show_menu(command)
+				elif command is not None:
 					self.process_input(command)
 			if evt is not None:
 				logging.debug("Got evt: (%d) %s", len(evt), evt)
@@ -106,10 +107,13 @@ class Client(object):
 		else:
 			self.send_request(cmd, opt)
 
+	def show_menu(self, menucommand):
+		cmd = menucommand.opts[0].split(' ')[0] # get first word
+		if cmd == '/go':
+			self.inputwin.show_menu(cmd, ['North','South','East','West'])
+
 	def get_options(self):
 		cmd = self.buffer.split(' ',1)[0] # get command so far
-		menu = Menu(self.logwin, ['North','South','East','West'])
-		option = menu.run()
 		if option is not None:
 			self.inputwin.addstr(7,1+len(self.buffer), ' ' + option)
 			self.buffer += ' ' + option

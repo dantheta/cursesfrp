@@ -3,6 +3,7 @@ import time
 import curses
 import logging
 import curses.panel
+import itertools
 
 
 class Menu(object):
@@ -13,10 +14,23 @@ class Menu(object):
 		self.setup()
 
 	def setup(self):
-		self.win = self.parent.subwin(10,20,5,5)
+		logging.debug("Parent : %s", self.parent)
+		logging.debug("Parent size: %s", self.parent.getmaxyx())
+		self.save_background()
+		self.win = self.parent.derwin(6,20,1,15)
 		self.panel = curses.panel.new_panel(self.win)
 		self.win.keypad(True)
 		curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLUE)
+
+	def save_background(self):
+		background = []
+		for (y, x) in itertools.product(range(1,7), range(15,36)):
+			background.append(self.parent.inch(y,x))
+		self._background = background
+
+	def restore_background(self):
+		for ch, (y, x) in zip(self._background, itertools.product(range(1,7), range(15,36))):
+			self.parent.addch(y,x,ch)
 
 	def draw(self):
 		self.win.box()
@@ -63,6 +77,8 @@ class Menu(object):
 		del self.panel
 		curses.panel.update_panels()
 		curses.doupdate()
+		self.restore_background()
+		self.parent.refresh()
 	
 
 def test(stdscr):
