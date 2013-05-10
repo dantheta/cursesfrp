@@ -36,17 +36,12 @@ class EventSource(object):
 		# prioritize user input?
 		self.has_input = False
 		if len(streams):
-			first = None
-			logging.info("Poll response: %s", streams[0])
+			self.has_input = ((0, 1) in streams) # find stdin in list of streams
+			logging.debug("stdin input waiting: %s", self.has_input)
+			
 			for (stream, evtype) in streams:
-				if stream == 0:
-					logging.debug("User input waiting")
-					self.has_input = True
-				else:
-					if first is None:
-						first = stream
-			if first is not None:
-				return first.recv()
+				if stream != 0:
+					return stream.recv()
 					
 	def send(self, obj):
 		assert isinstance(obj, Serializable)
