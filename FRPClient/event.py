@@ -31,12 +31,6 @@ class EventSource(object):
 		self.location = loc
 		self.subscriber.setsockopt(zmq.SUBSCRIBE, self.location)
 
-	def poll(self, timeout=250):
-		streams = self.poller.poll(timeout)
-		if len(streams):
-			return True
-		return False
-
 	def get_next(self):
 		streams = self.poller.poll(0)
 		# prioritize user input?
@@ -49,7 +43,8 @@ class EventSource(object):
 					logging.debug("User input waiting")
 					self.has_input = True
 				else:
-					first = stream
+					if first is None:
+						first = stream
 			if first is not None:
 				return first.recv()
 					
@@ -64,3 +59,9 @@ class EventSource(object):
 		# receive message (usually response) from REQ
 		logging.debug(self.req.recv())
 
+	def recv_obj(self):
+		# temporary recv() variant, until all responses have been migrated 
+		# to Response objects
+		obj = self.req.recv_pyobj()
+		logging.debug("Received response: %s", obj.rsp)
+		return obj

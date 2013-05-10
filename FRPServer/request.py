@@ -15,7 +15,7 @@ class RequestProcessor(object):
 		logging.info("Received verb: %s", verb)
 		if not hasattr(self, verb):
 			logging.info("Unknown command: %s", verb)
-			replysock.send('Unknown Command')
+			replysock.send(req + ' Unknown Command')
 			return
 		func = getattr(self, verb)
 		logging.debug("Got function: %s", func)
@@ -62,3 +62,5 @@ class RequestProcessor(object):
 				loc.enemies.remove(enemy)
 				loc.dead.append(enemy)
 			replysock.send('/attack {0} wins'.format(winner.name))
+
+		

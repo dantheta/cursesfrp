@@ -14,7 +14,7 @@ class Event(Serializable):
 		self.cmd = cmd
 		self.user = user
 		self.location = location
-		self.kw = kw
+		self.opts = kw
 
 class Request(Serializable):
 	def __init__(self, req, user, location, *opts):
@@ -24,7 +24,7 @@ class Request(Serializable):
 		self.opts = opts
 		
 class Response(Serializable):
-	def __init__(self, rsp, *opts):
+	def __init__(self, rsp, **kw):
 		self.rsp = rsp
-		self.opts = opts
+		self.opts = kw
 		

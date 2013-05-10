@@ -10,19 +10,18 @@ import ConfigParser
 from FRPShared.model import Event,Request
 from event import EventSource
 from menu import Menu
+from input import InputWindow
 
 
 class Client(object):
 	def __init__(self, user = None):
 		self.stdscr = None
 		self.logwin = None
-		self.location = ''
-		self.user = user or 'Dantheta'
-		self.eventsrc = EventSource(self.user)
-		self.set_location('location-1')
-		self.buffer = ''
+		self.location = None
 		self.config = ConfigParser.ConfigParser()
 		logging.info("Loaded config: %s", self.config.read(['client.cfg']))
+		self.user = user or self.config.get('client','user')
+		self.eventsrc = EventSource(self.user)
 		pass
 
 	def set_location(self, loc):
@@ -34,7 +33,7 @@ class Client(object):
 		self.panel = curses.panel.new_panel(stdscr)
 		self.h, self.w = stdscr.getmaxyx()
 		self.setup_logwin()
-		self.setup_inputwin()
+		self.inputwin = InputWindow(self.config, self.stdscr, self.logline, self.w, 9)
 
 	def setup_logwin(self):
 		self.logline = self.h-9
@@ -52,45 +51,30 @@ class Client(object):
 		self.logwin.addch(self.logline,self.w-1,curses.ACS_RTEE)
 		self.logwin.refresh()
 
-	def setup_inputwin(self):
-		self.inputwin = self.stdscr.subwin(9, self.w, self.logline,0)
-		self.inputpanel = curses.panel.new_panel(self.inputwin)
-		self.inputwin.keypad(True)
-		self.inputwin.scrollok(True)
-		self.inputwin.setscrreg(1,7)
-		self.draw_inputwin()
-
-	def draw_inputwin(self):
-		self.inputwin.box()
-		self.inputwin.addch(0,0, curses.ACS_LTEE)
-		self.inputwin.addch(0,self.w-1, curses.ACS_RTEE)
-		self.inputwin.refresh()
-		self.inputwin.move(7, 1)
-
 	def log(self, msg, *args):
-		s = msg % args
+		text = msg % args
 		self.logwin.scroll()
-		self.logwin.addstr(self.logline-1,1,s[:78])
+		self.logwin.addstr(self.logline-1,1,text[:78])
 		self.draw_logwin()
 		self.logwin.refresh()
 
-	def get_input(self):
-		self.inputwin.scroll()
-		self.draw_inputwin()
-		return self.inputwin.getstr(7,1)
 
 	def main(self, stdscr):
 		self.setup(stdscr)
 
 		self.send_event('ANNOUNCE')
-		self.eventsrc.recv()
+		response = self.eventsrc.recv_obj()
+		assert response.rsp == 'ANNOUNCE'
+		self.set_location(response.opts['initial_location'])
+
 		self.send_event('ENTER', old_location = None)
-		while True:
+		self.running = True
+		while self.running == True:
 			evt = self.eventsrc.get_next()
 			if self.eventsrc.has_input:
-				s = self.process_key()
-				if s is not None:
-					self.process_input(s)
+				command = self.inputwin.process_key()
+				if command is not None:
+					self.process_input(command)
 			if evt is not None:
 				logging.debug("Got evt: (%d) %s", len(evt), evt)
 				if evt == 'OK':
@@ -104,67 +88,23 @@ class Client(object):
 						self.log(line)
 			time.sleep(0.1)
 
-	def process_key(self):
-		ch = self.inputwin.getch()
-		logging.debug("Got key: %s, %s", type(ch), type(curses.KEY_F8))
-		if ch == curses.KEY_F8:
-			s = self.get_macro('F8')
-			logging.debug("Got macro: %s", s)
-			if s:
-				if s.endswith('\n'):
-					self.buffer = ''
-					self.inputwin.scroll()
-					self.inputwin.addstr(7,1, s[:-1])
-					self.inputwin.refresh()
-					return s[:-1]
-				else:
-					self.inputwin.addstr(7,1+len(self.buffer), s)
-					self.buffer += s
-					logging.debug("Buffer: %s", self.buffer)
-					self.inputwin.refresh()
-		elif ch == curses.KEY_BACKSPACE:
-			self.inputwin.addch(7, len(self.buffer), ' ')
-			self.inputwin.move(7,len(self.buffer))
-			self.buffer = self.buffer[:-1]
-			self.inputwin.refresh()
-		elif ch == 10:
-			s = self.buffer
-			self.inputwin.scroll()
-			self.draw_inputwin()
-			self.buffer = ''
-			return s
-		elif ch == 9:
-			# get options for command so far
-			self.get_options()
-		elif ch > 256:
-			logging.debug("Ignoring key: %s", ch)
+
+	def process_input(self, command):
+		if not command.startswith('/'):
+			self.send_event('SAY', text=command)
+			return
+
+		if ' ' in command:
+			cmd, opt = command.split(' ',1)
 		else:
-			self.inputwin.addch(7, 1+len(self.buffer), ch)
-			self.inputwin.refresh()
-			self.buffer += chr(ch)
+			cmd, opt = command, ''
 
-	def get_macro(self, key):
-		logging.debug("Looking up macro: %s")
-		try:
-			return self.config.get('macros', key).replace('<CR>','\n')
-		except ConfigParser.NoOptionError:
-			return ''
-
-	def process_input(self, s):
-		if not s.startswith('/'):
-			self.send_event('SAY', text=s)
+		if cmd == '/go':
+			oldloc = self.location
+			self.set_location(opt)
+			self.send_event('ENTER',old_location=oldloc)
 		else:
-			if ' ' in s:
-				cmd, opt = s.split(' ',1)
-			else:
-				cmd, opt = s, ''
-
-			if cmd == '/go':
-				oldloc = self.location
-				self.set_location(opt)
-				self.send_event('ENTER',old_location=oldloc)
-			else:
-				self.send_request(cmd, opt)
+			self.send_request(cmd, opt)
 
 	def get_options(self):
 		cmd = self.buffer.split(' ',1)[0] # get command so far
