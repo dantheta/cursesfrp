@@ -34,6 +34,5 @@ class EventProcessor(object):
 
 	def announce(self, evt, replysock):
 		logging.info("Generating user record: %s", evt.user)
-		if evt.user not in self.users:
-			self.users[evt.user] = User.generate(evt.user)
+		self.users[evt.user] = User.generate(evt.user)
 		replysock.send_pyobj(Response('ANNOUNCE',initial_location='location-1'))
