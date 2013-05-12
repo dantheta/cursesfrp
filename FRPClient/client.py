@@ -10,6 +10,7 @@ import ConfigParser
 from FRPShared.model import Event,Request
 from event import EventSource
 from input import InputWindow,MenuInputCommand
+from map import MapDialog
 
 
 class Client(object):
@@ -104,6 +105,11 @@ class Client(object):
 			oldloc = self.location
 			self.set_location(opt)
 			self.send_event('ENTER',old_location=oldloc)
+		elif cmd == '/map':
+			# no server command for this yet
+			dlg = MapDialog(self.stdscr, 24, 64, 4, 4)
+			dlg.run()
+			dlg.hide()
 		else:
 			self.send_request(cmd, opt)
 

@@ -3,13 +3,13 @@ import time
 import curses
 import logging
 import curses.panel
-import itertools
 
+from dialog import Dialog
 
-class Menu(object):
+class Menu(Dialog):
 	def __init__(self, parent, options):
+		Dialog.__init__(self, parent, 6, 20, 1, 15)
 		self.options = options
-		self.parent = parent
 		self.sel = 0
 		self.setup()
 
@@ -22,15 +22,6 @@ class Menu(object):
 		self.win.keypad(True)
 		curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLUE)
 
-	def save_background(self):
-		background = []
-		for (y, x) in itertools.product(range(1,7), range(15,36)):
-			background.append(self.parent.inch(y,x))
-		self._background = background
-
-	def restore_background(self):
-		for ch, (y, x) in zip(self._background, itertools.product(range(1,7), range(15,36))):
-			self.parent.addch(y,x,ch)
 
 	def draw(self):
 		self.win.box()
@@ -71,14 +62,6 @@ class Menu(object):
 				logging.info("Cancel")
 				return None
 
-	def hide(self):
-		logging.debug("Hiding menu")
-		del self.win
-		del self.panel
-		curses.panel.update_panels()
-		curses.doupdate()
-		self.restore_background()
-		self.parent.refresh()
 	
 
 def test(stdscr):
