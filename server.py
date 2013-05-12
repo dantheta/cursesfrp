@@ -26,9 +26,11 @@ class Server(object):
 		self.event_pub = ctx.socket(zmq.PUB)
 		self.request_sock = ctx.socket(zmq.REP)
 
+		# in-memory storage for location and user data
 		self.places = Locations()
 		self.users = Users.instance()
 
+		# interpreters
 		self.request_processor = RequestProcessor(self)
 		self.event_processor = EventProcessor(self)
 
@@ -38,17 +40,22 @@ class Server(object):
 		self.request_sock.bind('tcp://*:5557')
 
 		poller = zmq.Poller()
+		# Poller will check for events on the request socket and stdin
 		poller.register(self.request_sock,zmq.POLLIN)
 		poller.register(sys.stdin,zmq.POLLIN)
 
 		while True:
 			for (stream, evt) in poller.poll(None):
 				if stream == 0:
+					# if we have keyboard input waiting, read that and send it to clients' subscription channel
 					msg = raw_input()
 					self.event_pub.send(msg)
 				else:
+					# otherwise, recieve a request/event object from a client
 					obj = stream.recv_pyobj()
 					logging.info("Received object: %s", repr(obj))
+
+					# check the object type and send to the event processor or the request processor
 					if isinstance(obj, Event):
 						logging.info("Received event: %s; %s; %s", obj.cmd, obj.user, obj.location)
 						self.event_processor.process(obj, stream)
