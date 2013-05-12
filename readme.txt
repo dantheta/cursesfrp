@@ -1,4 +1,3 @@
-
 Text-based Multi-user Fantasy RPG
 ---------------------------------
 
@@ -46,12 +45,12 @@ Both the client and server run an event loop based on ZeroMQ's event poller.
 The REQ/REP socket will receive objects of two types from the client:
 
 Event objects - used by the client to update the server's state
-				The server will typically respond "OK", or send back updated
-				information.
+		The server will typically respond "OK", or send back updated
+		information.
 
 Request objects - instructions from the user
-				The server will send back a response which contains the results
-				of the user's action
+		The server will send back a response which contains the results
+		of the user's action
 
 
 Features to implement
