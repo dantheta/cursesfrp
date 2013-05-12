@@ -2,6 +2,8 @@
 import pickle
 import collections
 
+# various data model classes, shared between client & server
+
 class Serializable(object):
 	pass
 	
