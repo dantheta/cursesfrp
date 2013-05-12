@@ -101,6 +101,12 @@ localhost:5557.
 
 You can run additional clients with "python client.py -u <username>".
 
+Config file
+-----------
+
+client.cfg is a standard ini-file which contains settings for the default
+username (where no '-u' parameter has been passed) and a set of keyboard macros.
+
 Final Notes
 -----------
 
